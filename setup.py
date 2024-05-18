@@ -34,7 +34,7 @@ else:
     use_cython = True
 
 if use_cython:
-    ext_modules = cythonize('qpython/fastutils.pyx')
+    ext_modules = cythonize('qpython/fastutils.pyx', annotate=True)
 else:
     ext_modules = []
 

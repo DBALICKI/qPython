@@ -15,21 +15,23 @@
 #
 
 import numpy
+
+cimport cython
 cimport numpy
 
-DTYPE = numpy.int64
 ctypedef numpy.int64_t DTYPE_t
 ctypedef numpy.uint8_t DTYPE8_t
 
 
-
-def uncompress(numpy.ndarray[DTYPE8_t] data, DTYPE_t uncompressed_size):
-    cdef DTYPE_t n, r, i, d, s, p, pp, f
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def uncompress(numpy.ndarray[DTYPE8_t, ndim=1] data, DTYPE_t uncompressed_size):
+    cdef DTYPE_t n, r, i, ii, d, s, p, pp, f
     n, r, s, p, pp = 0, 0, 0, 0, 0
     i, d = 1, 1
 
-    cdef numpy.ndarray[DTYPE_t] ptrs = numpy.zeros(256, dtype = DTYPE)
-    cdef numpy.ndarray[DTYPE8_t] uncompressed = numpy.zeros(uncompressed_size, dtype = numpy.uint8)
+    cdef numpy.ndarray[DTYPE_t, ndim=1] ptrs = numpy.empty(256, dtype = numpy.int64)
+    cdef numpy.ndarray[DTYPE8_t, ndim=1] uncompressed = numpy.empty(uncompressed_size, dtype = numpy.uint8)
 
     f = 0xff & data[0]
 
@@ -39,11 +41,8 @@ def uncompress(numpy.ndarray[DTYPE8_t] data, DTYPE_t uncompressed_size):
         if f & i:
             r = ptrs[data[d]]
             n = 2 + data[d + 1]
-            if r+n<=s:
-                uncompressed[s:s + n] = uncompressed[r:r + n]
-            else:   #overlapping slices!
-                for ii in range(n):
-                    uncompressed[s+ii] = uncompressed[r+ii]
+            for ii in range(n):
+                uncompressed[s + ii] = uncompressed[r + ii]
 
             ptrs[uncompressed[p] ^ uncompressed[pp]] = p
             if s == pp:
