@@ -19,13 +19,10 @@ import numpy
 cimport cython
 cimport numpy
 
-ctypedef numpy.int64_t DTYPE_t
-ctypedef numpy.uint8_t DTYPE8_t
-
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def uncompress(numpy.ndarray[DTYPE8_t, ndim=1] data, DTYPE_t uncompressed_size):
+cpdef uncompress(numpy.ndarray[DTYPE8_t, ndim=1] data, DTYPE_t uncompressed_size):
     cdef DTYPE_t n, r, i, ii, d, s, p, pp, f
     n, r, s, p, pp = 0, 0, 0, 0, 0
     i, d = 1, 1
