@@ -22,6 +22,35 @@ cdef class QMessage:
         self._size = message_size
         self._compression_mode = compression_mode
 
+    @property
+    def data(self):
+        """Parsed data."""
+        return self._data
+
+    @data.setter
+    def data(self, value):
+        self._data = value
+
+    @property
+    def type(self):
+        """Type of the message."""
+        return self._type
+
+    @property
+    def compression_mode(self):
+        """Indicates whether source message was compressed."""
+        return self._compression_mode
+
+    @property
+    def size(self):
+        """Size of the source message."""
+        return self._size
+
+    def __str__(self):
+        return (
+            f"QMessage: message type: {self._type}, data size: {self._size}, "
+            f"compression_mode: {self._compression_mode}, data: {self._data}"
+        )
 
 cdef class BytesBuffer:
     def __init__(self):
