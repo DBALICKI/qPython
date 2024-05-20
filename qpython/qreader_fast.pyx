@@ -269,7 +269,7 @@ cdef class QReader:
         self._reader_map = {}
         self._reader_map[QERROR] = self._read_error
         self._reader_map[QSTRING] = self._read_string
-        self._reader_map[QSYMBOL] = self._read_string
+        self._reader_map[QSYMBOL] = self._read_symbol
         self._reader_map[QCHAR] = self._read_char
         self._reader_map[QGUID] = self._read_guid
         self._reader_map[QTIMESPAN] = self._read_temporal
