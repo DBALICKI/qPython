@@ -127,7 +127,7 @@ cdef class BytesBuffer:
         """
         self._endianness = endianness
 
-    def wrap(self, bytes data):
+    cpdef wrap(self, bytes data):
         """
         Wraps the data in the buffer.
 
@@ -138,7 +138,7 @@ cdef class BytesBuffer:
         self._position = 0
         self._size = len(data)
 
-    def skip(self, int offset = 1):
+    cpdef skip(self, int offset):
         """
         Skips reading of `offset` bytes.
 
@@ -152,7 +152,7 @@ cdef class BytesBuffer:
 
         self._position = new_position
 
-    def raw(self, int offset) -> bytes:
+    cpdef bytes raw(self, int offset):
         """
         Gets `offset` number of raw bytes.
 
@@ -172,22 +172,21 @@ cdef class BytesBuffer:
         self._position = new_position
         return raw
 
-    def get(self, str fmt, int offset = 0):
+    cpdef get(self, str fmt):
         """
         Gets bytes from the buffer according to specified format or `offset`.
 
         :Parameters:
             - `fmt` (struct format) - conversion to be applied for reading
-            - `offset` (`integer`) - number of bytes to be retrieved
 
         :returns: unpacked bytes
         """
+        cdef int offset
         fmt = self._endianness + fmt
-        if not offset:
-            offset = struct.calcsize(fmt)
+        offset = struct.calcsize(fmt)
         return struct.unpack(fmt, self.raw(offset))[0]
 
-    def get_byte(self):
+    cpdef get_byte(self):
         """
         Gets a single byte from the buffer.
 
@@ -195,7 +194,7 @@ cdef class BytesBuffer:
         """
         return self.get("b")
 
-    def get_int(self):
+    cpdef int get_int(self):
         """
         Gets a single 32-bit integer from the buffer.
 
@@ -203,7 +202,7 @@ cdef class BytesBuffer:
         """
         return self.get("i")
 
-    def get_uint(self):
+    cpdef get_uint(self):
         """
         Gets a single 32-bit unsigned integer from the buffer.
 
@@ -211,7 +210,7 @@ cdef class BytesBuffer:
         """
         return self.get("I")
 
-    def get_long(self):
+    cpdef get_long(self):
         """
         Gets a single 64-bit integer from the buffer.
 
@@ -219,7 +218,7 @@ cdef class BytesBuffer:
         """
         return self.get("q")
 
-    def get_symbol(self):
+    cpdef get_symbol(self):
         """
         Gets a single, ``\\x00`` terminated string from the buffer.
 
@@ -236,7 +235,7 @@ cdef class BytesBuffer:
         self._position = new_position + 1
         return raw
 
-    def get_symbols(self, int count):
+    cpdef get_symbols(self, int count):
         """
         Gets ``count`` ``\\x00`` terminated strings from the buffer.
 
@@ -349,7 +348,7 @@ cdef class QReader:
         message_size += message_size_ext << 32
         return QMessage(None, message_type, message_size, message_compression_mode)
 
-    def read_data(self, message_size, compression_mode = 0, **options):
+    def read_data(self, int message_size, int compression_mode = 0, **options):
         """
         Reads and optionally parses data part of a message.
 
@@ -371,7 +370,8 @@ cdef class QReader:
         :returns: read data (parsed or raw byte form)
         """
         self._options = MetaData(**CONVERSION_OPTIONS.union_dict(**options))
-
+        cdef int comprHeaderLen
+        cdef int uncompressed_size
         if compression_mode > 0:
             comprHeaderLen = 4 if compression_mode == 1 else 8
             if self._stream:
@@ -383,8 +383,9 @@ cdef class QReader:
             if  uncompressed_size <= 0:
                 raise QReaderException("Error while data decompression.")
 
-            raw_data = uncompress(raw_data, np.int64(uncompressed_size))
-            raw_data = np.ndarray.tobytes(raw_data)
+            raw_data = uncompress(raw_data, uncompressed_size)
+            # raw_data = np.ndarray.tobytes(raw_data)
+            raw_data = raw_data.tobytes()
             self._buffer.wrap(raw_data)
         elif self._stream:
             raw_data = self._read_bytes(message_size - 8)
@@ -394,7 +395,7 @@ cdef class QReader:
 
         return raw_data if self._options.raw else self._read_object()
 
-    def _read_object(self):
+    cpdef _read_object(self):
         cdef int qtype
         qtype = self._buffer.get_byte()
         reader = self._reader_map.get(qtype, None)
@@ -406,24 +407,25 @@ cdef class QReader:
             return self._read_atom(qtype)
         raise QReaderException(f"Unable to deserialize q type: {hex(qtype)}")
 
-    def _read_error(self, int qtype=QERROR):
-        raise QException(self._read_symbol())
+    cpdef _read_error(self, int qtype):
+        raise QException(self._read_symbol(QSYMBOL))
 
-    def _read_string(self, int qtype=QSTRING):
-        self._buffer.skip()  # ignore attributes
+    cpdef _read_string(self, int qtype):
+        cdef int length
+        self._buffer.skip(1)  # ignore attributes
         length = self._buffer.get_int()
         return self._buffer.raw(length) if length > 0 else b''
 
-    def _read_symbol(self, int qtype=QSYMBOL):
+    cpdef _read_symbol(self, int qtype):
         return np.string_(self._buffer.get_symbol())
 
-    def _read_char(self, int qtype=QCHAR):
+    cpdef _read_char(self, int qtype):
         return chr(self._read_atom(QCHAR)).encode(self._encoding)
 
-    def _read_guid(self, int qtype=QGUID):
+    cpdef _read_guid(self, int qtype):
         return uuid.UUID(bytes = self._buffer.raw(16))
 
-    def _read_atom(self, int qtype):
+    cpdef _read_atom(self, int qtype):
         cdef str fmt
         try:
             fmt = STRUCT_MAP[qtype]
@@ -432,7 +434,7 @@ cdef class QReader:
         except KeyError:
             raise QReaderException(f"Unable to deserialize q type: {hex(qtype)}")
 
-    def _read_temporal(self, int qtype):
+    cpdef _read_temporal(self, int qtype):
         try:
             fmt = STRUCT_MAP[qtype]
             conversion = PY_TYPE[qtype]
@@ -441,7 +443,7 @@ cdef class QReader:
         except KeyError:
             raise QReaderException(f"Unable to deserialize q type: {hex(qtype)}")
 
-    def _read_list(self, qtype):
+    cpdef _read_list(self, int qtype):
         attr = self._buffer.get_byte()
         isLongLength = attr & 0x80 != 0
         length = self._buffer.get_long() if isLongLength else self._buffer.get_uint()
@@ -452,7 +454,7 @@ cdef class QReader:
             data = np.array(symbols, dtype = np.string_)
             return qlist(data, qtype = qtype, adjust_dtype = False)
         elif qtype == QGUID_LIST:
-            data = np.array([self._read_guid() for x in range(length)])
+            data = np.array([self._read_guid(QGUID) for x in range(length)])
             return qlist(data, qtype = qtype, adjust_dtype = False)
         elif conversion:
             raw = self._buffer.raw(length * ATOM_SIZE[qtype])
@@ -467,7 +469,7 @@ cdef class QReader:
         else:
             raise QReaderException(f"Unable to deserialize q type: {hex(qtype)}")
 
-    def _read_dictionary(self, int qtype=QDICTIONARY):
+    cpdef _read_dictionary(self, int qtype):
         keys = self._read_object()
         values = self._read_object()
 
@@ -476,45 +478,46 @@ cdef class QReader:
         else:
             return QDictionary(keys, values)
 
-    def _read_table(self, int qtype=QTABLE):
-        self._buffer.skip()  # ignore attributes
-        self._buffer.skip()  # ignore dict type stamp
+    cpdef _read_table(self, int qtype):
+        self._buffer.skip(1)  # ignore attributes
+        self._buffer.skip(1)  # ignore dict type stamp
 
         columns = self._read_object()
         data = self._read_object()
 
         return qtable(columns, data, qtype = QTABLE)
 
-    def _read_general_list(self, int qtype=QGENERAL_LIST):
+    cpdef _read_general_list(self, int qtype):
         cdef int i
         cdef int length
-        self._buffer.skip()  # ignore attributes
+        self._buffer.skip(1)  # ignore attributes
         length = self._buffer.get_int()
         return [self._read_object() for i in range(length)]
 
-    def _read_function(self, int qtype=QNULL):
+    cpdef _read_function(self, int qtype):
         code = self._buffer.get_byte()
         return None if qtype == QNULL and code == 0 else QFunction(qtype)
 
-    def _read_lambda(self, int qtype=QLAMBDA):
+    cpdef _read_lambda(self, int qtype):
         self._buffer.get_symbol()  # skip
         expression = self._read_object()
         return QLambda(expression.decode())
 
-    def _read_function_composition(self, int qtype=QCOMPOSITION_FUNC):
+    cpdef _read_function_composition(self, int qtype):
         self._read_projection(qtype)  # skip
         return QFunction(qtype)
 
-    def _read_adverb_function(self, int qtype=QADVERB_FUNC_106):
+    cpdef _read_adverb_function(self, int qtype):
         self._read_object()  # skip
         return QFunction(qtype)
 
-    def _read_projection(self, int qtype=QPROJECTION):
+    cpdef _read_projection(self, int qtype):
+        cdef int length
         length = self._buffer.get_int()
-        parameters = [ self._read_object() for x in range(length) ]
+        parameters = [self._read_object() for x in range(length)]
         return QProjection(parameters)
 
-    def _read_bytes(self, int length):
+    cpdef bytes _read_bytes(self, int length):
         cdef bytes data
         if not self._stream:
             raise QReaderException("There is no input data. QReader requires either stream or data chunk")
