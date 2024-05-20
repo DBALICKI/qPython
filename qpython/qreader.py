@@ -549,18 +549,10 @@ class QReader(object):
             if count == 0:
                 return []
 
-            while c < count:
-                new_position = self._data.find(b'\x00', new_position)
+            results = self._data[new_position:].split(b'\x00', count)
+            if len(results) != count + 1:
+                raise QReaderException('Failed to read symbols from stream')
 
-                if new_position < 0:
-                    raise QReaderException('Failed to read symbol from stream')
-
-                c += 1
-                new_position += 1
-
-            raw = self._data[self._position : new_position - 1]
-            self._position = new_position
-
-            return raw.split(b'\x00')
-
-
+            self.wrap(results[-1])
+            results = results[:-1]
+            return results
