@@ -15,8 +15,10 @@
 #
 
 import binascii
+import pathlib
 import struct
 import sys
+import time
 try:
     from cStringIO import BytesIO
 except ImportError:
@@ -26,22 +28,27 @@ if sys.version > '3':
     long = int
 
 from collections import OrderedDict
-from qpython import qreader
+# from qpython import qreader
+from qpython import qreader_fast as qreader
 from qpython.qtype import *  # @UnusedWildImport
+from qpython.qtype_fast import QException
+from qpython.qtype_fast import QLambda
+from qpython.qtype_fast import QFunction
 from qpython.qcollection import qlist, QList, QTemporalList, QDictionary, qtable, QTable, QKeyedTable
 from qpython.qtemporal import qtemporal, QTemporal
 
 
 
-COMPRESSED_EXPRESSIONS = OrderedDict((
-                    (b'1000#`q',                                        qlist(numpy.array(['q'] * 1000), qtype=QSYMBOL_LIST)),
-                    (b'([] q:1000#`q)',                                 qtable(qlist(numpy.array(['q']), qtype = QSYMBOL_LIST),
-                                                                             [qlist(numpy.array(['q'] * 1000), qtype=QSYMBOL_LIST)])),
-                    (b'([] a:til 200;b:25+til 200;c:200#`a)',           qtable(qlist(numpy.array(['a', 'b', 'c']), qtype = QSYMBOL_LIST),
-                                                                             [qlist(numpy.arange(200), qtype=QLONG_LIST),
-                                                                              qlist(numpy.arange(200) + 25, qtype=QLONG_LIST),
-                                                                              qlist(numpy.array(['a'] * 200), qtype=QSYMBOL_LIST)])),
-                   ))
+COMPRESSED_EXPRESSIONS = OrderedDict(
+    (
+        (b'1000#`q', qlist(numpy.array(['q'] * 1000), qtype=QSYMBOL_LIST)),
+        (b'([] q:1000#`q)', qtable(qlist(numpy.array(['q']), qtype = QSYMBOL_LIST), [qlist(numpy.array(['q'] * 1000), qtype=QSYMBOL_LIST)])),
+        (b'([] a:til 200;b:25+til 200;c:200#`a)', qtable(qlist(numpy.array(['a', 'b', 'c']), qtype = QSYMBOL_LIST),
+            [qlist(numpy.arange(200), qtype=QLONG_LIST),
+            qlist(numpy.arange(200) + 25, qtype=QLONG_LIST),
+            qlist(numpy.array(['a'] * 200), qtype=QSYMBOL_LIST)])),
+    )
+)
 
 
 
@@ -87,8 +94,8 @@ def compare(left, right):
 
 def test_reading():
     BINARY = OrderedDict()
-
-    with open('tests/QExpressions3.out', 'rb') as f:
+    filepath = pathlib.Path(__file__).parent / "QExpressions3.out"
+    with open(filepath, 'rb') as f:
         while True:
             query = f.readline().strip()
             binary = f.readline().strip()
@@ -307,8 +314,8 @@ def test_reading():
 
 def test_reading_numpy_temporals():
     BINARY = OrderedDict()
-
-    with open('tests/QExpressions3.out', 'rb') as f:
+    filepath = pathlib.Path(__file__).parent / "QExpressions3.out"
+    with open(filepath, 'rb') as f:
         while True:
             query = f.readline().strip()
             binary = f.readline().strip()
@@ -370,10 +377,12 @@ def test_reading_numpy_temporals():
                                                             [qlist(numpy.array(['d1', 'd2', 'd3']), qtype = QSYMBOL_LIST),
                                                              numpy.array([numpy.datetime64('2001-01-01'), numpy.datetime64('2000-05-01'), numpy.datetime64('NaT')], dtype='datetime64[D]')]))
 
+
+
 def test_reading_compressed():
     BINARY = OrderedDict()
-
-    with open('tests/QCompressedExpressions3.out', 'rb') as f:
+    filepath = pathlib.Path(__file__).parent / "QCompressedExpressions3.out"
+    with open(filepath, 'rb') as f:
         while True:
             query = f.readline().strip()
             binary = f.readline().strip()
@@ -396,11 +405,22 @@ def test_reading_compressed():
 
         sys.stdout.write( '  %-75s' % query )
         try:
-            result = buffer_reader.read(source = buffer_.getvalue()).data
+            source = buffer_.getvalue()
+            start_time = time.perf_counter()
+            n_iter = 10000
+            for _ in range(n_iter):
+                result = buffer_reader.read(source=source).data
+            end_time = time.perf_counter()
+            print((end_time - start_time) / n_iter)
             assert compare(value, result), 'deserialization failed: %s' % (query)
 
-            header = buffer_reader.read_header(source = buffer_.getvalue())
-            result = buffer_reader.read_data(message_size = header.size, compression_mode = header.compression_mode)
+            start_time = time.perf_counter()
+            n_iter = 10000
+            for _ in range(n_iter):
+                header = buffer_reader.read_header(source = buffer_.getvalue())
+                result = buffer_reader.read_data(message_size = header.size, compression_mode = header.compression_mode)
+            end_time = time.perf_counter()
+            print((end_time - start_time) / n_iter)
             assert compare(value, result), 'deserialization failed: %s' % (query)
 
             stream_reader = qreader.QReader(buffer_)
@@ -414,6 +434,6 @@ def test_reading_compressed():
 
 
 
-test_reading()
-test_reading_numpy_temporals()
-test_reading_compressed()
+# test_reading()
+# test_reading_numpy_temporals()
+# test_reading_compressed()
