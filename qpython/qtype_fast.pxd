@@ -56,3 +56,7 @@ cdef int QADVERB_FUNC_111
 cdef int QPROJECTION
 
 cdef int QERROR
+
+cdef tuple ATOM_SIZE
+cdef dict STRUCT_MAP
+cdef dict PY_TYPE

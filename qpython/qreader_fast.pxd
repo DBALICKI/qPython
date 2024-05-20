@@ -21,3 +21,5 @@ cdef class QReader:
     cdef BytesBuffer _buffer
     cdef str _encoding
     cdef dict _reader_map
+    cdef bint _is_native
+    cdef object _options
